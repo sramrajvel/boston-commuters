@@ -1,0 +1,76 @@
+---
+title: "boston_commuters"
+author: "Sanjana Ramrajvel"
+date: "11/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(googlesheets4)
+library(gt)
+library(moderndive)
+library(infer)
+
+
+
+```
+
+```{r Plot, warning = FALSE}
+
+sheets_deauth()
+
+set.seed(9)
+
+Q4_data <- read_sheet("14Zxd1-xdUoLfaCG6j55T9W2WvqchyBGJy3J2sAwTXPM")
+group <- list(1, 2, 3, 4, 5)
+
+m <- matrix(nrow = 5000)
+data_plot <- data.frame(m, replicate = NA, stat = NA, group = NA)
+data_plot <- data_plot[,2:4]
+
+for (i in group) {
+  index1 <- 20*i - 19
+  index2 <- 20*i
+  index3 <- 1000*i - 999
+  index4 <- 1000*i
+  data_plot[index3:index4,] <- Q4_data[index1:index2,] %>%
+    rep_sample_n(size = 20, replace = TRUE, reps = 1000) %>%
+    group_by(replicate) %>%
+    summarize(stat = (sum(republican)/20)) %>%
+    mutate(group = i)
+}
+
+ggplot(data_plot, aes(x = stat)) +
+  geom_histogram(binwidth = .05) +
+  facet_wrap(~ group, scales = "free_x") +
+  xlim(0, 1) +
+  labs(title = "Proportion of Republican Boston commuters", x = "Proportion", y = "Count")
+
+```
+<br />
+
+```{r Table}
+
+n <- matrix(nrow = 5)
+data_table <- data.frame(n, `2.5%` = NA, `97.5%` = NA, mean = NA)
+data_table <- data_table[,2:4]
+
+for (i in group) {
+  data_table[i,1:2] <- data_plot %>%
+    filter(group == i) %>%
+    get_confidence_interval(level = 0.95, type = "percentile")
+  
+  data_table[i,3] <- data_plot %>%
+    filter(group == i) %>%
+    summarize(mean(stat))
+}
+
+colnames(data_table) = c("2.5%", "97.5%", "mean")
+gt(data_table) %>%
+  tab_spanner(label = "Bounds", columns = vars(`2.5%`, `97.5%`)) %>%
+  tab_header(title = "95% Confidence Interval")
+
+```
